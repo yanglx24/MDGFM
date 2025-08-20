@@ -324,29 +324,21 @@ for lr in [lr_list]:
                     unify_dim,
                 ).to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
                 idx_train, train_lbls = gen_few_shot_data(
-                    args.dataset.lower(), shotnum, seed + i
+                    args.dataset, shotnum, seed + i
                 )
-                # idx_train = (
-                #     torch.load(
-                #         "data/fewshot_{}/{}-shot_{}/{}/idx.pt".format(
-                #             args.dataset.lower(), shotnum, args.dataset.lower(), i
-                #         )
-                #     )
-                #     .type(torch.long)
-                #     .to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
-                # )
+                idx_train = (
+                    torch.tensor(idx_train)
+                    .type(torch.long)
+                    .to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+                )
                 pretrain_embs = embeds[0, idx_train]
                 test_embs = embeds[0, idx_test]
-                # train_lbls = (
-                #     torch.load(
-                #         "data/fewshot_{}/{}-shot_{}/{}/labels.pt".format(
-                #             args.dataset.lower(), shotnum, args.dataset.lower(), i
-                #         )
-                #     )
-                #     .type(torch.long)
-                #     .squeeze()
-                #     .to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
-                # )
+                train_lbls = (
+                    torch.tensor(train_lbls)
+                    .type(torch.long)
+                    .squeeze()
+                    .to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+                )
                 opt = torch.optim.Adam([{"params": log.parameters()}], lr=downstreamlr)
                 log = log.to(
                     torch.device("cuda" if torch.cuda.is_available() else "cpu")
