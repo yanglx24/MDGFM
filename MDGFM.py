@@ -122,7 +122,7 @@ for lr in [lr_list]:
     for step, (data1, data2, data3, data4, data5, data6) in enumerate(
         zip(loader1, loader2, loader3, loader4, loader5, loader6)
     ):
-
+        print("Step:", step)
         features11, adj1 = process.process_tu(data1, data1.x.shape[1])
         features22, adj2 = process.process_tu(data2, data2.x.shape[1])
         features33, adj3 = process.process_tu(data3, data3.x.shape[1])
@@ -159,8 +159,8 @@ for lr in [lr_list]:
         adj = process.combine_dataset(adj1, adj2, adj3, adj4, adj5)
         negative_sample = preprompt.prompt_pretrain_sample(adj, 50)
 
-    adj2 = process.normalize_adj(adj2 + sp.eye(adj2.shape[0]))
     adj1 = process.normalize_adj(adj1 + sp.eye(adj1.shape[0]))
+    adj2 = process.normalize_adj(adj2 + sp.eye(adj2.shape[0]))
     adj3 = process.normalize_adj(adj3 + sp.eye(adj3.shape[0]))
     adj4 = process.normalize_adj(adj4 + sp.eye(adj4.shape[0]))
     adj5 = process.normalize_adj(adj5 + sp.eye(adj5.shape[0]))
@@ -176,20 +176,19 @@ for lr in [lr_list]:
     )
 
     optimiser = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=l2_coef)
-    if torch.cuda.is_available():
-        model = model.cuda()
-        features1 = features1.cuda()
-        features2 = features2.cuda()
-        features3 = features3.cuda()
-        features4 = features4.cuda()
-        features5 = features5.cuda()
+    model = model.to(device)
+    features1 = features1.to(device)
+    features2 = features2.to(device)
+    features3 = features3.to(device)
+    features4 = features4.to(device)
+    features5 = features5.to(device)
 
-        if sparse:
-            sp_adj1 = sp_adj1.cuda()
-            sp_adj2 = sp_adj2.cuda()
-            sp_adj3 = sp_adj3.cuda()
-            sp_adj4 = sp_adj4.cuda()
-            sp_adj5 = sp_adj5.cuda()
+    if sparse:
+        sp_adj1 = sp_adj1.to(device)
+        sp_adj2 = sp_adj2.to(device)
+        sp_adj3 = sp_adj3.to(device)
+        sp_adj4 = sp_adj4.to(device)
+        sp_adj5 = sp_adj5.to(device)
 
     for epoch in range(nb_epochs):
         torch.cuda.empty_cache()
