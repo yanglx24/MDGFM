@@ -1,17 +1,42 @@
 import torch
 from torch_geometric.datasets import Planetoid
 import numpy as np
+from utils.data_process import KGNodeInitializer
 from torch_geometric.datasets import (
+    PPI,
     TUDataset,
     Planetoid,
     Amazon,
-    Coauthor,
     Reddit,
-    Actor,
     WikipediaNetwork,
     WebKB,
-    Flickr,
+    AmazonProducts,
+    FB15k_237,
+    WordNet18RR,
+    MoleculeNet,
+    FacebookPagePage,
+    AttributedGraphDataset,
 )
+from ogb.nodeproppred import PygNodePropPredDataset
+
+
+def load_FB15k237_data_with_feats():
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    train_data = FB15k_237("data/FB15k_237", split="train")[0]
+    valid_data = FB15k_237("data/FB15k_237", split="val")[0]
+    test_data = FB15k_237("data/FB15k_237", split="test")[0]
+    model = KGNodeInitializer("transe", device=device)
+    results = model.fit(
+        train_data,
+        valid_data,
+        test_data,
+        batch_size=1000,
+        epochs=500,
+        verbose=True,
+    )
+    data = FB15k_237("data/FB15k_237", split="train")[0]
+    data.x = results["node_embeddings"]
+    return data
 
 
 def gen_few_shot_data(dataset_name, num_shots, seed):
@@ -50,11 +75,11 @@ def gen_few_shot_data(dataset_name, num_shots, seed):
 
 
 def get_dataset_stats(dataset_name):
-    if dataset_name in ["Cora", "Citeseer", "Pubmed"]:
+    if dataset_name in ["cora", "citeseer", "pubmed"]:
         dataset = Planetoid(root="data", name=dataset_name)
-    elif dataset_name in ["Chameleon", "Squirrel"]:
+    elif dataset_name in ["chameleon", "squirrel"]:
         dataset = WikipediaNetwork(root="data", name=dataset_name)
-    elif dataset_name in ["Cornell"]:
+    elif dataset_name in ["cornell"]:
         dataset = WebKB(root="data", name=dataset_name)
     else:
         raise ValueError(f"Unsupported dataset: {dataset_name}")
@@ -71,21 +96,35 @@ def get_dataset_stats(dataset_name):
 
 
 if __name__ == "__main__":
-    datasets = ["Cora", "Citeseer", "Pubmed", "Chameleon", "Squirrel", "Cornell"]
-    num_shots = 5
-    seed = 41
-    for dataset_name in datasets:
-        stats = get_dataset_stats(dataset_name)
-        print(f"Dataset: {stats['dataset_name']}")
-        print(f"Number of graphs: {stats['num_graphs']}")
-        print(f"Number of nodes: {stats['num_nodes']}")
-        print(f"Number of classes: {stats['num_classes']}")
+    dataset = PygNodePropPredDataset(name="ogbn-arxiv", root="data")
+    dataset = AmazonProducts(root="data/AmazonProducts")
+    dataset = Reddit(root="data/Reddit")
+    dataset = FB15k_237(root="data/FB15k_237")
+    dataset = PPI(root="data/PPI")
+    dataset = MoleculeNet(root="data", name="PCBA")
 
-        print(f"Generating few-shot data for {dataset_name} with {num_shots} shots")
-        few_shot_indices, few_shot_labels = gen_few_shot_data(
-            dataset_name, num_shots, seed
-        )
-        print(f"Few-shot indices: {few_shot_indices}")
-        print(len(few_shot_indices), "few-shot samples generated.")
-        print(f"Few-shot labels: {few_shot_labels}")
-        print("=========================================================")
+    dataset = Planetoid(root="data", name="Pubmed")
+    dataset = Amazon(root="data", name="Computers")
+    ###############################################
+    dataset = WordNet18RR(root="data/WordNet18RR")
+    dataset = TUDataset(root="data", name="PROTEINS")
+    dataset = MoleculeNet(root="data", name="Tox21")
+
+    # datasets = ["Cora", "Citeseer", "Pubmed", "Chameleon", "Squirrel", "Cornell"]
+    # num_shots = 5
+    # seed = 41
+    # for dataset_name in datasets:
+    #     stats = get_dataset_stats(dataset_name)
+    #     print(f"Dataset: {stats['dataset_name']}")
+    #     print(f"Number of graphs: {stats['num_graphs']}")
+    #     print(f"Number of nodes: {stats['num_nodes']}")
+    #     print(f"Number of classes: {stats['num_classes']}")
+
+    #     print(f"Generating few-shot data for {dataset_name} with {num_shots} shots")
+    #     few_shot_indices, few_shot_labels = gen_few_shot_data(
+    #         dataset_name, num_shots, seed
+    #     )
+    #     print(f"Few-shot indices: {few_shot_indices}")
+    #     print(len(few_shot_indices), "few-shot samples generated.")
+    #     print(f"Few-shot labels: {few_shot_labels}")
+    #     print("=========================================================")

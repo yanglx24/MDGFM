@@ -118,6 +118,7 @@ class PrePrompt(nn.Module):
         self.pretext3 = textprompt(n_in, type)
         self.pretext4 = textprompt(n_in, type)
         self.pretext5 = textprompt(n_in, type)
+        self.pretext6 = textprompt(n_in, type)
 
         self.sumtext = textprompt(n_in, type)
 
@@ -126,12 +127,14 @@ class PrePrompt(nn.Module):
         self.texttoken3 = textprompt(n_h, type)
         self.texttoken4 = textprompt(n_h, type)
         self.texttoken5 = textprompt(n_h, type)
+        self.texttoken6 = textprompt(n_h, type)
 
         self.balancetoken1 = textprompt(2 * n_in, type)
         self.balancetoken2 = textprompt(2 * n_in, type)
         self.balancetoken3 = textprompt(2 * n_in, type)
         self.balancetoken4 = textprompt(2 * n_in, type)
         self.balancetoken5 = textprompt(2 * n_in, type)
+        self.balancetoken6 = textprompt(2 * n_in, type)
 
         self.learner = ATT_learner(2, 50, 6, 0.5, sparse=True, act="relu")
 
@@ -147,11 +150,13 @@ class PrePrompt(nn.Module):
         seq3,
         seq4,
         seq5,
+        seq6,
         adj1,
         adj2,
         adj3,
         adj4,
         adj5,
+        adj6,
         sparse,
         msk,
         samp_bias1,
@@ -164,24 +169,28 @@ class PrePrompt(nn.Module):
         seq3 = torch.squeeze(seq3, 0)
         seq4 = torch.squeeze(seq4, 0)
         seq5 = torch.squeeze(seq5, 0)
+        seq6 = torch.squeeze(seq6, 0)
 
         preseq1 = self.pretext1(seq1)
         preseq2 = self.pretext2(seq2)
         preseq3 = self.pretext3(seq3)
         preseq4 = self.pretext4(seq4)
         preseq5 = self.pretext5(seq5)
+        preseq6 = self.pretext6(seq6)
 
         preseq1 = F.relu(preseq1)
         preseq2 = F.relu(preseq2)
         preseq3 = F.relu(preseq3)
         preseq4 = F.relu(preseq4)
         preseq5 = F.relu(preseq5)
+        preseq6 = F.relu(preseq6)
 
         preseq1 = self.sumtext(preseq1)
         preseq2 = self.sumtext(preseq2)
         preseq3 = self.sumtext(preseq3)
         preseq4 = self.sumtext(preseq4)
         preseq5 = self.sumtext(preseq5)
+        preseq6 = self.sumtext(preseq6)
 
         reseq1 = torch.sparse.mm(adj1, preseq1)
         reseq1 = torch.cat((preseq1, reseq1), dim=1)
@@ -193,12 +202,15 @@ class PrePrompt(nn.Module):
         reseq4 = torch.cat((preseq4, reseq4), dim=1)
         reseq5 = torch.sparse.mm(adj5, preseq5)
         reseq5 = torch.cat((preseq5, reseq5), dim=1)
+        reseq6 = torch.sparse.mm(adj6, preseq6)
+        reseq6 = torch.cat((preseq6, reseq6), dim=1)
 
         reseq1 = self.balancetoken1(reseq1)
         reseq2 = self.balancetoken2(reseq2)
         reseq3 = self.balancetoken3(reseq3)
         reseq4 = self.balancetoken4(reseq4)
         reseq5 = self.balancetoken5(reseq5)
+        reseq6 = self.balancetoken6(reseq6)
 
         pre_k = [30, 30, 30, 15, 15, 15]
         pre_k[i] = 15
@@ -217,30 +229,37 @@ class PrePrompt(nn.Module):
         refinedadj5 = self.learner.graph_process(pre_k[4], reseq5).to(
             torch.device("cuda" if torch.cuda.is_available() else "cpu")
         )
+        refinedadj6 = self.learner.graph_process(pre_k[5], reseq6).to(
+            torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        )
 
         num1, _ = refinedadj1.size()
         num2, _ = refinedadj2.size()
         num3, _ = refinedadj3.size()
         num4, _ = refinedadj4.size()
         num5, _ = refinedadj5.size()
+        num6, _ = refinedadj6.size()
 
         pos_eye1 = torch.eye(num1).to(refinedadj1.device)
         pos_eye2 = torch.eye(num2).to(refinedadj1.device)
         pos_eye3 = torch.eye(num3).to(refinedadj1.device)
         pos_eye4 = torch.eye(num4).to(refinedadj1.device)
         pos_eye5 = torch.eye(num5).to(refinedadj1.device)
+        pos_eye6 = torch.eye(num6).to(refinedadj1.device)
 
         prelogits1 = self.lp(self.gcn, preseq1, refinedadj1, sparse)
         prelogits2 = self.lp(self.gcn, preseq2, refinedadj2, sparse)
         prelogits3 = self.lp(self.gcn, preseq3, refinedadj3, sparse)
         prelogits4 = self.lp(self.gcn, preseq4, refinedadj4, sparse)
         prelogits5 = self.lp(self.gcn, preseq5, refinedadj5, sparse)
+        prelogits6 = self.lp(self.gcn, preseq6, refinedadj6, sparse)
 
         logits1 = self.lp(self.gcn, preseq1, adj1, sparse)
         logits2 = self.lp(self.gcn, preseq2, adj2, sparse)
         logits3 = self.lp(self.gcn, preseq3, adj3, sparse)
         logits4 = self.lp(self.gcn, preseq4, adj4, sparse)
         logits5 = self.lp(self.gcn, preseq5, adj5, sparse)
+        logits6 = self.lp(self.gcn, preseq6, adj6, sparse)
 
         lploss1 = (
             Calbound.calc_lower_bound(prelogits1, logits1, pos_eye1)
@@ -248,6 +267,7 @@ class PrePrompt(nn.Module):
             + Calbound.calc_lower_bound(prelogits3, logits3, pos_eye3)
             + Calbound.calc_lower_bound(prelogits4, logits4, pos_eye4)
             + Calbound.calc_lower_bound(prelogits5, logits5, pos_eye5)
+            + Calbound.calc_lower_bound(prelogits6, logits6, pos_eye6)
         )
         lploss2 = (
             Calbound.calc_lower_bound(prelogits1, logits1, refinedadj1.detach())
@@ -255,6 +275,7 @@ class PrePrompt(nn.Module):
             + Calbound.calc_lower_bound(prelogits3, logits3, refinedadj3.detach())
             + Calbound.calc_lower_bound(prelogits4, logits4, refinedadj4.detach())
             + Calbound.calc_lower_bound(prelogits5, logits5, refinedadj5.detach())
+            + Calbound.calc_lower_bound(prelogits6, logits6, refinedadj6.detach())
         )
 
         lploss = lploss1 + lploss2
@@ -268,11 +289,13 @@ class PrePrompt(nn.Module):
         seq3,
         seq4,
         seq5,
+        seq6,
         adj1,
         adj2,
         adj3,
         adj4,
         adj5,
+        adj6,
         sparse,
         msk,
         samp_bias1,
@@ -284,18 +307,21 @@ class PrePrompt(nn.Module):
         seq3 = torch.squeeze(seq3, 0)
         seq4 = torch.squeeze(seq4, 0)
         seq5 = torch.squeeze(seq5, 0)
+        seq6 = torch.squeeze(seq6, 0)
 
         preseq1 = self.pretext1(seq1)
         preseq2 = self.pretext2(seq2)
         preseq3 = self.pretext3(seq3)
         preseq4 = self.pretext4(seq4)
         preseq5 = self.pretext5(seq5)
+        preseq6 = self.pretext6(seq6)
 
         prelogits1 = self.lp(self.gcn, preseq1, adj1, sparse)
         prelogits2 = self.lp(self.gcn, preseq2, adj2, sparse)
         prelogits3 = self.lp(self.gcn, preseq3, adj3, sparse)
         prelogits4 = self.lp(self.gcn, preseq4, adj4, sparse)
         prelogits5 = self.lp(self.gcn, preseq5, adj5, sparse)
+        prelogits6 = self.lp(self.gcn, preseq6, adj6, sparse)
 
         return (
             prelogits1.detach(),
@@ -303,6 +329,7 @@ class PrePrompt(nn.Module):
             prelogits3.detach(),
             prelogits4.detach(),
             prelogits5.detach(),
+            prelogits6.detach(),
         )
 
     def embed(self, seq, adj, sparse, msk, LP):

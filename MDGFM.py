@@ -18,6 +18,7 @@ import argparse
 from downprompt import downprompt, prefeatureprompt
 import csv
 from tqdm import tqdm
+from ogb.nodeproppred import PygNodePropPredDataset
 
 parser = argparse.ArgumentParser("MDGFM")
 import torch.nn.functional as F
@@ -55,19 +56,22 @@ np.random.seed(seed)
 
 import torch
 import torch.nn as nn
+from utils.data_process import KGNodeInitializer
 
 torch.manual_seed(seed)
 torch.cuda.manual_seed(seed)
 from torch_geometric.datasets import (
+    PPI,
     TUDataset,
     Planetoid,
     Amazon,
-    Coauthor,
     Reddit,
-    Actor,
     WikipediaNetwork,
     WebKB,
-    Flickr,
+    AmazonProducts,
+    FB15k_237,
+    WordNet18RR,
+    MoleculeNet,
 )
 from torch_geometric.loader import DataLoader
 from torch.nn.parallel import DistributedDataParallel
@@ -95,17 +99,37 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 best = 1e9
 firstbest = 0
 
-dataset1 = Planetoid(root="data", name="Cora")
+
+def load_FB15k237_data_with_feats():
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    train_data = FB15k_237("data/FB15k_237", split="train")[0]
+    valid_data = FB15k_237("data/FB15k_237", split="val")[0]
+    test_data = FB15k_237("data/FB15k_237", split="test")[0]
+    model = KGNodeInitializer("transe", device=device)
+    results = model.fit(
+        train_data,
+        valid_data,
+        test_data,
+        batch_size=1000,
+        epochs=500,
+        verbose=True,
+    )
+    data = FB15k_237("data/FB15k_237", split="train")[0]
+    data.x = results["node_embeddings"]
+    return data
+
+
+dataset1 = PygNodePropPredDataset(name="ogbn-arxiv", root="data")
 loader1 = DataLoader(dataset1)
-dataset2 = Planetoid(root="data", name="Pubmed")
+dataset2 = AmazonProducts(root="data/AmazonProducts")
 loader2 = DataLoader(dataset2)
-dataset3 = Planetoid(root="data", name="Citeseer")
+dataset3 = Reddit(root="data/Reddit")
 loader3 = DataLoader(dataset3)
-dataset4 = WikipediaNetwork(root="data", name="Chameleon")
+dataset4 = load_FB15k237_data_with_feats()
 loader4 = DataLoader(dataset4)
-dataset5 = WikipediaNetwork(root="data", name="Squirrel")
+dataset5 = PPI(root="data/PPI")
 loader5 = DataLoader(dataset5)
-dataset6 = WebKB(root="data", name="Cornell")
+dataset6 = MoleculeNet(root="data", name="PCBA")
 loader6 = DataLoader(dataset6)
 cnt_wait = 0
 b_xent = nn.BCEWithLogitsLoss()
@@ -128,35 +152,40 @@ for lr in [lr_list]:
         features33, adj3 = process.process_tu(data3, data3.x.shape[1])
         features44, adj4 = process.process_tu(data4, data4.x.shape[1])
         features55, adj5 = process.process_tu(data5, data5.x.shape[1])
+        features66, adj6 = process.process_tu(data6, data6.x.shape[1])
         pre_i = 5
-        if args.dataset == "Cora":
-            features11, adj1 = process.process_tu(data6, data6.x.shape[1])
-            pre_i = 0
-        elif args.dataset == "Pubmed":
-            features22, adj2 = process.process_tu(data6, data6.x.shape[1])
-            pre_i = 1
-        elif args.dataset == "Citeseer":
-            features33, adj3 = process.process_tu(data6, data6.x.shape[1])
-            pre_i = 2
-        elif args.dataset == "Chameleon":
-            features44, adj4 = process.process_tu(data6, data6.x.shape[1])
-            pre_i = 3
-        elif args.dataset == "Squirrel":
-            features55, adj5 = process.process_tu(data6, data6.x.shape[1])
-            pre_i = 4
+        # if args.dataset == "Cora":
+        #     features11, adj1 = process.process_tu(data6, data6.x.shape[1])
+        #     pre_i = 0
+        # elif args.dataset == "Pubmed":
+        #     features22, adj2 = process.process_tu(data6, data6.x.shape[1])
+        #     pre_i = 1
+        # elif args.dataset == "Citeseer":
+        #     features33, adj3 = process.process_tu(data6, data6.x.shape[1])
+        #     pre_i = 2
+        # elif args.dataset == "Chameleon":
+        #     features44, adj4 = process.process_tu(data6, data6.x.shape[1])
+        #     pre_i = 3
+        # elif args.dataset == "Squirrel":
+        #     features55, adj5 = process.process_tu(data6, data6.x.shape[1])
+        #     pre_i = 4
+
         features1 = pca_compression(features11, k=unify_dim)
         features2 = pca_compression(features22, k=unify_dim)
         features3 = pca_compression(features33, k=unify_dim)
         features4 = pca_compression(features44, k=unify_dim)
         features5 = pca_compression(features55, k=unify_dim)
+        features6 = pca_compression(features66, k=unify_dim)
 
         features1 = torch.FloatTensor(features1).to(device)
         features2 = torch.FloatTensor(features2).to(device)
         features3 = torch.FloatTensor(features3).to(device)
         features4 = torch.FloatTensor(features4).to(device)
         features5 = torch.FloatTensor(features5).to(device)
+        features6 = torch.FloatTensor(features6).to(device)
 
-        adj = process.combine_dataset(adj1, adj2, adj3, adj4, adj5)
+        # adj = process.combine_dataset(adj1, adj2, adj3, adj4, adj5)
+        adj = process.combine_dataset(adj1, adj2, adj3, adj4, adj5, adj6)
         negative_sample = preprompt.prompt_pretrain_sample(adj, 50)
 
     adj1 = process.normalize_adj(adj1 + sp.eye(adj1.shape[0]))
@@ -164,12 +193,14 @@ for lr in [lr_list]:
     adj3 = process.normalize_adj(adj3 + sp.eye(adj3.shape[0]))
     adj4 = process.normalize_adj(adj4 + sp.eye(adj4.shape[0]))
     adj5 = process.normalize_adj(adj5 + sp.eye(adj5.shape[0]))
+    adj6 = process.normalize_adj(adj6 + sp.eye(adj6.shape[0]))
     if sparse:
         sp_adj1 = process.sparse_mx_to_torch_sparse_tensor(adj1)
         sp_adj2 = process.sparse_mx_to_torch_sparse_tensor(adj2)
         sp_adj3 = process.sparse_mx_to_torch_sparse_tensor(adj3)
         sp_adj4 = process.sparse_mx_to_torch_sparse_tensor(adj4)
         sp_adj5 = process.sparse_mx_to_torch_sparse_tensor(adj5)
+        sp_adj6 = process.sparse_mx_to_torch_sparse_tensor(adj6)
 
     model = PrePrompt(
         unify_dim, hid_units, nonlinearity, negative_sample, 3, 0.1, args.combinetype
@@ -177,11 +208,13 @@ for lr in [lr_list]:
 
     optimiser = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=l2_coef)
     model = model.to(device)
+
     features1 = features1.to(device)
     features2 = features2.to(device)
     features3 = features3.to(device)
     features4 = features4.to(device)
     features5 = features5.to(device)
+    features6 = features6.to(device)
 
     if sparse:
         sp_adj1 = sp_adj1.to(device)
@@ -189,6 +222,7 @@ for lr in [lr_list]:
         sp_adj3 = sp_adj3.to(device)
         sp_adj4 = sp_adj4.to(device)
         sp_adj5 = sp_adj5.to(device)
+        sp_adj6 = sp_adj6.to(device)
 
     for epoch in range(nb_epochs):
         torch.cuda.empty_cache()
@@ -205,11 +239,13 @@ for lr in [lr_list]:
             features3,
             features4,
             features5,
+            features6,
             sp_adj1 if sparse else adj1,
             sp_adj2 if sparse else adj2,
             sp_adj3 if sparse else adj3,
             sp_adj4 if sparse else adj4,
             sp_adj5 if sparse else adj5,
+            sp_adj6 if sparse else adj6,
             sparse,
             None,
             None,
@@ -234,185 +270,185 @@ for lr in [lr_list]:
 
     model = PrePrompt(unify_dim, hid_units, nonlinearity, 1, 3, 0.1, args.combinetype)
 
-    print("#" * 50)
-    print("Downastream dataset is ", args.dataset)
+    # print("#" * 50)
+    # print("Downastream dataset is ", args.dataset)
 
-    if args.dataset == "Cora" or args.dataset == "Citeseer" or args.dataset == "Pubmed":
-        dataset = Planetoid(root="data", name=args.dataset)
-        downk = 30
-        if args.dataset == "Pubmed":
-            testnum = 100
-    if args.dataset == "Chameleon" or args.dataset == "Squirrel":
-        dataset = WikipediaNetwork(root="data", name=args.dataset)
-        downk = 15
-    if args.dataset == "Cornell":
-        dataset = WebKB(root="data", name=args.dataset)
-        downk = 15
+    # if args.dataset == "Cora" or args.dataset == "Citeseer" or args.dataset == "Pubmed":
+    #     dataset = Planetoid(root="data", name=args.dataset)
+    #     downk = 30
+    #     if args.dataset == "Pubmed":
+    #         testnum = 100
+    # if args.dataset == "Chameleon" or args.dataset == "Squirrel":
+    #     dataset = WikipediaNetwork(root="data", name=args.dataset)
+    #     downk = 15
+    # if args.dataset == "Cornell":
+    #     dataset = WebKB(root="data", name=args.dataset)
+    #     downk = 15
 
-    print(args.dataset)
-    loader = DataLoader(dataset)
-    for data in loader:
-        print(data)
-        features, adj = process.process_tu(data, data.x.shape[1])
-        features = pca_compression(features, k=unify_dim)
-        adj = process.normalize_adj(adj + sp.eye(adj.shape[0]))
-        sp_adj = process.sparse_mx_to_torch_sparse_tensor(adj)
-        sp_adj = sp_adj.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
-        features = torch.FloatTensor(features).to(
-            torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        )
-        print(features.shape)
-        ln = data.y.shape[0] - testnum
-        if ln < 0:
-            ln = 0
-        idx_test = range(ln, data.y.shape[0])
-        labels = data.y
-        data = np.array(data.y)
-        np.unique(data)
-        nb_classes = len(np.unique(data))
-        print(nb_classes)
+    # print(args.dataset)
+    # loader = DataLoader(dataset)
+    # for data in loader:
+    #     print(data)
+    #     features, adj = process.process_tu(data, data.x.shape[1])
+    #     features = pca_compression(features, k=unify_dim)
+    #     adj = process.normalize_adj(adj + sp.eye(adj.shape[0]))
+    #     sp_adj = process.sparse_mx_to_torch_sparse_tensor(adj)
+    #     sp_adj = sp_adj.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+    #     features = torch.FloatTensor(features).to(
+    #         torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    #     )
+    #     print(features.shape)
+    #     ln = data.y.shape[0] - testnum
+    #     if ln < 0:
+    #         ln = 0
+    #     idx_test = range(ln, data.y.shape[0])
+    #     labels = data.y
+    #     data = np.array(data.y)
+    #     np.unique(data)
+    #     nb_classes = len(np.unique(data))
+    #     print(nb_classes)
 
-    model = model.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+    # model = model.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
 
-    model.load_state_dict(torch.load(args.save_name))
+    # model.load_state_dict(torch.load(args.save_name))
 
-    embeds, _ = model.embed(features, sp_adj if sparse else adj, sparse, None, LP)
-    acclist = torch.FloatTensor(100).to(
-        torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    )
+    # embeds, _ = model.embed(features, sp_adj if sparse else adj, sparse, None, LP)
+    # acclist = torch.FloatTensor(100).to(
+    #     torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # )
 
-    for downstreamlr in [downstreamlrlist]:
+    # for downstreamlr in [downstreamlrlist]:
 
-        print(labels.shape)
-        test_lbls = labels[idx_test].to(
-            torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        )
-        tot = torch.zeros(1)
-        tot = tot.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
-        accs = []
-        print("-" * 100)
-        for shotnum in range(shot_num, shot_num + 1):
-            tot = torch.zeros(1)
-            tot = tot.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
-            accs = []
-            cnt_wait = 0
-            best = 1e9
-            best_t = 0
-            print("shotnum", shotnum)
-            for i in tqdm(range(50)):
-                log = downprompt(
-                    model.texttoken1.weight.detach(),
-                    model.texttoken2.weight.detach(),
-                    model.texttoken3.weight.detach(),
-                    model.texttoken4.weight.detach(),
-                    model.texttoken5.weight.detach(),
-                    model.sumtext.weight.detach(),
-                    model.pretext1.weight.detach(),
-                    model.pretext2.weight.detach(),
-                    model.pretext3.weight.detach(),
-                    model.pretext4.weight.detach(),
-                    model.pretext5.weight.detach(),
-                    model.balancetoken1.weight.detach(),
-                    model.balancetoken2.weight.detach(),
-                    model.balancetoken3.weight.detach(),
-                    model.balancetoken4.weight.detach(),
-                    model.balancetoken5.weight.detach(),
-                    hid_units,
-                    nb_classes,
-                    args.combinetype,
-                    unify_dim,
-                ).to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
-                idx_train, train_lbls = gen_few_shot_data(
-                    args.dataset, shotnum, seed + i
-                )
-                idx_train = (
-                    torch.tensor(idx_train)
-                    .type(torch.long)
-                    .to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
-                )
-                pretrain_embs = embeds[0, idx_train]
-                test_embs = embeds[0, idx_test]
-                train_lbls = (
-                    torch.tensor(train_lbls)
-                    .type(torch.long)
-                    .squeeze()
-                    .to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
-                )
-                opt = torch.optim.Adam([{"params": log.parameters()}], lr=downstreamlr)
-                log = log.to(
-                    torch.device("cuda" if torch.cuda.is_available() else "cpu")
-                )
-                best = 1e9
-                pat_steps = 0
-                best_acc = torch.zeros(1)
-                best_acc = best_acc.to(
-                    torch.device("cuda" if torch.cuda.is_available() else "cpu")
-                )
+    #     print(labels.shape)
+    #     test_lbls = labels[idx_test].to(
+    #         torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    #     )
+    #     tot = torch.zeros(1)
+    #     tot = tot.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+    #     accs = []
+    #     print("-" * 100)
+    #     for shotnum in range(shot_num, shot_num + 1):
+    #         tot = torch.zeros(1)
+    #         tot = tot.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+    #         accs = []
+    #         cnt_wait = 0
+    #         best = 1e9
+    #         best_t = 0
+    #         print("shotnum", shotnum)
+    #         for i in tqdm(range(50)):
+    #             log = downprompt(
+    #                 model.texttoken1.weight.detach(),
+    #                 model.texttoken2.weight.detach(),
+    #                 model.texttoken3.weight.detach(),
+    #                 model.texttoken4.weight.detach(),
+    #                 model.texttoken5.weight.detach(),
+    #                 model.sumtext.weight.detach(),
+    #                 model.pretext1.weight.detach(),
+    #                 model.pretext2.weight.detach(),
+    #                 model.pretext3.weight.detach(),
+    #                 model.pretext4.weight.detach(),
+    #                 model.pretext5.weight.detach(),
+    #                 model.balancetoken1.weight.detach(),
+    #                 model.balancetoken2.weight.detach(),
+    #                 model.balancetoken3.weight.detach(),
+    #                 model.balancetoken4.weight.detach(),
+    #                 model.balancetoken5.weight.detach(),
+    #                 hid_units,
+    #                 nb_classes,
+    #                 args.combinetype,
+    #                 unify_dim,
+    #             ).to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+    #             idx_train, train_lbls = gen_few_shot_data(
+    #                 args.dataset, shotnum, seed + i
+    #             )
+    #             idx_train = (
+    #                 torch.tensor(idx_train)
+    #                 .type(torch.long)
+    #                 .to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+    #             )
+    #             pretrain_embs = embeds[0, idx_train]
+    #             test_embs = embeds[0, idx_test]
+    #             train_lbls = (
+    #                 torch.tensor(train_lbls)
+    #                 .type(torch.long)
+    #                 .squeeze()
+    #                 .to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+    #             )
+    #             opt = torch.optim.Adam([{"params": log.parameters()}], lr=downstreamlr)
+    #             log = log.to(
+    #                 torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    #             )
+    #             best = 1e9
+    #             pat_steps = 0
+    #             best_acc = torch.zeros(1)
+    #             best_acc = best_acc.to(
+    #                 torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    #             )
 
-                for _ in range(400):
-                    log.train()
-                    opt.zero_grad()
-                    logits = (
-                        log(
-                            features,
-                            sp_adj,
-                            sparse,
-                            model.gcn,
-                            idx_train,
-                            pretrain_embs,
-                            downk,
-                            train_lbls,
-                            1,
-                        )
-                        .float()
-                        .to(
-                            torch.device("cuda" if torch.cuda.is_available() else "cpu")
-                        )
-                    )
-                    loss = xent(logits, train_lbls)
-                    if loss < best:
-                        best = loss
-                        cnt_wait = 0
-                    else:
-                        cnt_wait += 1
-                    if cnt_wait == patience:
-                        print("Early stopping!")
-                        break
+    #             for _ in range(400):
+    #                 log.train()
+    #                 opt.zero_grad()
+    #                 logits = (
+    #                     log(
+    #                         features,
+    #                         sp_adj,
+    #                         sparse,
+    #                         model.gcn,
+    #                         idx_train,
+    #                         pretrain_embs,
+    #                         downk,
+    #                         train_lbls,
+    #                         1,
+    #                     )
+    #                     .float()
+    #                     .to(
+    #                         torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    #                     )
+    #                 )
+    #                 loss = xent(logits, train_lbls)
+    #                 if loss < best:
+    #                     best = loss
+    #                     cnt_wait = 0
+    #                 else:
+    #                     cnt_wait += 1
+    #                 if cnt_wait == patience:
+    #                     print("Early stopping!")
+    #                     break
 
-                    loss.backward(retain_graph=True)
-                    opt.step()
-                logits = log(
-                    features, sp_adj, sparse, model.gcn, idx_test, test_embs, downk
-                )
-                preds = torch.argmax(logits, dim=1).to(
-                    torch.device("cuda" if torch.cuda.is_available() else "cpu")
-                )
-                acc = torch.sum(preds == test_lbls).float() / test_lbls.shape[0]
-                accs.append(acc * 100)
-                print("acc:[{:.4f}]".format(acc))
-                tot += acc
-            print("-" * 100)
-            print("Average accuracy:[{:.4f}]".format(tot.item() / 50))
-            accs = torch.stack(accs)
-            print("Mean:[{:.4f}]".format(accs.mean().item()))
-            print("Std :[{:.4f}]".format(accs.std().item()))
-            print("-" * 100)
-            row = [
-                "Final:",
-                "lr",
-                lr,
-                "downstreamlr",
-                downstreamlr,
-                "nb_epochs",
-                nb_epochs,
-                hid_units,
-                accs.mean().item(),
-                accs.std().item(),
-            ]
-            out = open(
-                "data/ICML25_{}_fewshot.csv".format(args.dataset.lower()),
-                "a",
-                newline="",
-            )
-            csv_writer = csv.writer(out, dialect="excel")
-            csv_writer.writerow(row)
+    #                 loss.backward(retain_graph=True)
+    #                 opt.step()
+    #             logits = log(
+    #                 features, sp_adj, sparse, model.gcn, idx_test, test_embs, downk
+    #             )
+    #             preds = torch.argmax(logits, dim=1).to(
+    #                 torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    #             )
+    #             acc = torch.sum(preds == test_lbls).float() / test_lbls.shape[0]
+    #             accs.append(acc * 100)
+    #             print("acc:[{:.4f}]".format(acc))
+    #             tot += acc
+    #         print("-" * 100)
+    #         print("Average accuracy:[{:.4f}]".format(tot.item() / 50))
+    #         accs = torch.stack(accs)
+    #         print("Mean:[{:.4f}]".format(accs.mean().item()))
+    #         print("Std :[{:.4f}]".format(accs.std().item()))
+    #         print("-" * 100)
+    #         row = [
+    #             "Final:",
+    #             "lr",
+    #             lr,
+    #             "downstreamlr",
+    #             downstreamlr,
+    #             "nb_epochs",
+    #             nb_epochs,
+    #             hid_units,
+    #             accs.mean().item(),
+    #             accs.std().item(),
+    #         ]
+    #         out = open(
+    #             "data/ICML25_{}_fewshot.csv".format(args.dataset.lower()),
+    #             "a",
+    #             newline="",
+    #         )
+    #         csv_writer = csv.writer(out, dialect="excel")
+    #         csv_writer.writerow(row)

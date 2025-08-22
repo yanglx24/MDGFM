@@ -146,5 +146,4 @@ def dense_to_sparse(dense_matrix):
     values = torch.tensor(values, dtype=torch.float32)
 
     sparse_matrix = torch.sparse.FloatTensor(indices, values, dense_matrix.size())
-
     return sparse_matrix
