@@ -15,7 +15,6 @@ from torch_geometric.datasets import (
     WordNet18RR,
     MoleculeNet,
     FacebookPagePage,
-    AttributedGraphDataset,
 )
 from ogb.nodeproppred import PygNodePropPredDataset
 
