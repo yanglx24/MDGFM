@@ -100,32 +100,61 @@ best = 1e9
 firstbest = 0
 
 
-def load_FB15k237_data_with_feats():
+def load_KG_data_with_feats(dataset_name):
+    assert dataset_name in ["FB15k_237", "WordNet18RR"], "Only FB15k_237 and WordNet18RR are supported."
+    if dataset_name == "FB15k_237":
+        dataset = FB15k_237("data/FB15k_237", split="train")
+        data = dataset[0]
+    elif dataset_name == "WordNet18RR":
+        dataset = WordNet18RR("data/WordNet18RR", split="train")
+        data = dataset[0]
+    if os.path.exists(f"data/{dataset_name}/results.pt"):
+        results = torch.load(f"data/{dataset_name}/results.pt")
+        data.x = results["node_embeddings"]
+        return data
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    train_data = FB15k_237("data/FB15k_237", split="train")[0]
-    valid_data = FB15k_237("data/FB15k_237", split="val")[0]
-    test_data = FB15k_237("data/FB15k_237", split="test")[0]
-    model = KGNodeInitializer("transe", device=device)
-    results = model.fit(
-        train_data,
-        valid_data,
-        test_data,
-        batch_size=1000,
-        epochs=500,
-        verbose=True,
-    )
-    data = FB15k_237("data/FB15k_237", split="train")[0]
-    data.x = results["node_embeddings"]
+    if dataset_name == "FB15k_237":
+        train_data = FB15k_237("data/FB15k_237", split="train")[0]
+        valid_data = FB15k_237("data/FB15k_237", split="val")[0]
+        test_data = FB15k_237("data/FB15k_237", split="test")[0]
+        model = KGNodeInitializer("transe", device=device)
+        results = model.fit(
+            train_data,
+            valid_data,
+            test_data,
+            batch_size=1000,
+            epochs=500,
+            verbose=True,
+        )
+        data = FB15k_237("data/FB15k_237", split="train")[0]
+        data.x = results["node_embeddings"]
+    # elif dataset_name == "WordNet18RR":
+    #     train_data = WordNet18RR("data/WordNet18RR")[0]
+    #     valid_data = WordNet18RR("data/WordNet18RR", split="valid")[0]
+    #     test_data = WordNet18RR("data/WordNet18RR", split="test")[0]
+    #     model = KGNodeInitializer("transe", device=device)
+    #     results = model.fit(
+    #         train_data,
+    #         valid_data,
+    #         test_data,
+    #         batch_size=1000,
+    #         epochs=500,
+    #         verbose=True,
+    #     )
+    #     data = WordNet18RR("data/WordNet18RR", split="train")[0]
+    #     data.x = results["node_embeddings"]
+    torch.save(results, f"data/{dataset_name}/results.pt")
+    
     return data
 
-
-dataset1 = PygNodePropPredDataset(name="ogbn-arxiv", root="data")
-loader1 = DataLoader(dataset1)
 dataset2 = AmazonProducts(root="data/AmazonProducts")
 loader2 = DataLoader(dataset2)
+dataset1 = PygNodePropPredDataset(name="ogbn-arxiv", root="data")
+loader1 = DataLoader(dataset1)
+
 dataset3 = Reddit(root="data/Reddit")
 loader3 = DataLoader(dataset3)
-dataset4 = load_FB15k237_data_with_feats()
+dataset4 = load_KG_data_with_feats("FB15k_237")
 loader4 = DataLoader(dataset4)
 dataset5 = PPI(root="data/PPI")
 loader5 = DataLoader(dataset5)
