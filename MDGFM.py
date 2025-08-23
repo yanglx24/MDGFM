@@ -101,17 +101,21 @@ firstbest = 0
 
 
 def load_KG_data_with_feats(dataset_name):
-    assert dataset_name in ["FB15k_237", "WordNet18RR"], "Only FB15k_237 and WordNet18RR are supported."
+    assert dataset_name in [
+        "FB15k_237",
+        "WordNet18RR",
+    ], "Only FB15k_237 and WordNet18RR are supported."
     if dataset_name == "FB15k_237":
         dataset = FB15k_237("data/FB15k_237", split="train")
-        data = dataset[0]
     elif dataset_name == "WordNet18RR":
         dataset = WordNet18RR("data/WordNet18RR", split="train")
-        data = dataset[0]
     if os.path.exists(f"data/{dataset_name}/results.pt"):
-        results = torch.load(f"data/{dataset_name}/results.pt")
-        data.x = results["node_embeddings"]
-        return data
+        results = torch.load(
+            f"data/{dataset_name}/results.pt",
+            map_location=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+        )
+        dataset[0].x = results["node_embeddings"]
+        return dataset
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if dataset_name == "FB15k_237":
         train_data = FB15k_237("data/FB15k_237", split="train")[0]
@@ -126,8 +130,8 @@ def load_KG_data_with_feats(dataset_name):
             epochs=500,
             verbose=True,
         )
-        data = FB15k_237("data/FB15k_237", split="train")[0]
-        data.x = results["node_embeddings"]
+        dataset = FB15k_237("data/FB15k_237", split="train")
+        dataset[0].x = results["node_embeddings"]
     # elif dataset_name == "WordNet18RR":
     #     train_data = WordNet18RR("data/WordNet18RR")[0]
     #     valid_data = WordNet18RR("data/WordNet18RR", split="valid")[0]
@@ -144,8 +148,9 @@ def load_KG_data_with_feats(dataset_name):
     #     data = WordNet18RR("data/WordNet18RR", split="train")[0]
     #     data.x = results["node_embeddings"]
     torch.save(results, f"data/{dataset_name}/results.pt")
-    
-    return data
+
+    return dataset
+
 
 dataset2 = AmazonProducts(root="data/AmazonProducts")
 loader2 = DataLoader(dataset2)
@@ -172,6 +177,19 @@ for lr in [lr_list]:
     best = 1e9
     firstbest = 0
     args.save_name = str(time_) + a
+    for step, (data1) in enumerate(zip(loader1)):
+        break
+    for step, (data2) in enumerate(zip(loader2)):
+        break
+    for step, (data3) in enumerate(zip(loader3)):
+        break
+    for step, (data4) in enumerate(zip(loader4)):
+        break
+    for step, (data5) in enumerate(zip(loader5)):
+        break
+    for step, (data6) in enumerate(zip(loader6)):
+        break
+
     for step, (data1, data2, data3, data4, data5, data6) in enumerate(
         zip(loader1, loader2, loader3, loader4, loader5, loader6)
     ):
