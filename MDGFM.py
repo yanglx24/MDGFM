@@ -19,6 +19,7 @@ from downprompt import downprompt, prefeatureprompt
 import csv
 from tqdm import tqdm
 from ogb.nodeproppred import PygNodePropPredDataset
+import sys
 
 parser = argparse.ArgumentParser("MDGFM")
 import torch.nn.functional as F
@@ -114,7 +115,7 @@ def load_KG_data_with_feats(dataset_name):
             f"data/{dataset_name}/results.pt",
             map_location=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
         )
-        dataset[0].x = results["node_embeddings"]
+        dataset.data.x = results["node_embeddings"]
         return dataset
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if dataset_name == "FB15k_237":
@@ -130,8 +131,7 @@ def load_KG_data_with_feats(dataset_name):
             epochs=500,
             verbose=True,
         )
-        dataset = FB15k_237("data/FB15k_237", split="train")
-        dataset[0].x = results["node_embeddings"]
+        dataset.x = results["node_embeddings"]
     # elif dataset_name == "WordNet18RR":
     #     train_data = WordNet18RR("data/WordNet18RR")[0]
     #     valid_data = WordNet18RR("data/WordNet18RR", split="valid")[0]
@@ -152,10 +152,11 @@ def load_KG_data_with_feats(dataset_name):
     return dataset
 
 
-dataset2 = AmazonProducts(root="data/AmazonProducts")
-loader2 = DataLoader(dataset2)
 dataset1 = PygNodePropPredDataset(name="ogbn-arxiv", root="data")
 loader1 = DataLoader(dataset1)
+dataset2 = AmazonProducts(root="data/AmazonProducts")
+loader2 = DataLoader(dataset2)
+
 
 dataset3 = Reddit(root="data/Reddit")
 loader3 = DataLoader(dataset3)
@@ -164,11 +165,12 @@ loader4 = DataLoader(dataset4)
 dataset5 = PPI(root="data/PPI")
 loader5 = DataLoader(dataset5)
 dataset6 = MoleculeNet(root="data", name="PCBA")
+print(dataset6[0].num_node_features)
 loader6 = DataLoader(dataset6)
 cnt_wait = 0
 b_xent = nn.BCEWithLogitsLoss()
 xent = nn.CrossEntropyLoss()
-unify_dim = 50
+unify_dim = 9
 a = args.save_name
 n_ = 0
 for lr in [lr_list]:
@@ -177,18 +179,6 @@ for lr in [lr_list]:
     best = 1e9
     firstbest = 0
     args.save_name = str(time_) + a
-    for step, (data1) in enumerate(zip(loader1)):
-        break
-    for step, (data2) in enumerate(zip(loader2)):
-        break
-    for step, (data3) in enumerate(zip(loader3)):
-        break
-    for step, (data4) in enumerate(zip(loader4)):
-        break
-    for step, (data5) in enumerate(zip(loader5)):
-        break
-    for step, (data6) in enumerate(zip(loader6)):
-        break
 
     for step, (data1, data2, data3, data4, data5, data6) in enumerate(
         zip(loader1, loader2, loader3, loader4, loader5, loader6)
@@ -231,7 +221,6 @@ for lr in [lr_list]:
         features5 = torch.FloatTensor(features5).to(device)
         features6 = torch.FloatTensor(features6).to(device)
 
-        # adj = process.combine_dataset(adj1, adj2, adj3, adj4, adj5)
         adj = process.combine_dataset(adj1, adj2, adj3, adj4, adj5, adj6)
         negative_sample = preprompt.prompt_pretrain_sample(adj, 50)
 

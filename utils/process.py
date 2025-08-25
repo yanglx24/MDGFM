@@ -86,19 +86,21 @@ def visual(feat):
 
 
 def combine_dataset(*args):
-    for step, adj in enumerate(args):
-        if step == 0:
-            adj1 = adj.todense()
-        else:
-            adj2 = adj.todense()
-            zeroadj = np.zeros((adj1.shape[0], adj2.shape[0]))
-            tmpadj1 = np.column_stack((adj1, zeroadj))
-            tmpadj2 = np.column_stack((zeroadj.T, adj2))
-            adj1 = np.row_stack((tmpadj1, tmpadj2))
+    # for step, adj in enumerate(args):
+    #     if step == 0:
+    #         adj1 = adj.todense()
+    #     else:
+    #         adj2 = adj.todense()
+    #         zeroadj = np.zeros((adj1.shape[0], adj2.shape[0]))
+    #         tmpadj1 = np.column_stack((adj1, zeroadj))
+    #         tmpadj2 = np.column_stack((zeroadj.T, adj2))
+    #         adj1 = np.row_stack((tmpadj1, tmpadj2))
 
-    adj = sp.csr_matrix(adj1)
+    # adj = sp.csr_matrix(adj1)
 
-    return adj
+    # return adj
+
+    return sp.block_diag(args, format="csr")
 
 
 def combine_label(*labels):
