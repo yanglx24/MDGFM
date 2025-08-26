@@ -113,7 +113,7 @@ def load_KG_data_with_feats(dataset_name):
     if os.path.exists(f"data/{dataset_name}/results.pt"):
         results = torch.load(
             f"data/{dataset_name}/results.pt",
-            map_location=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+            map_location=torch.device("cpu"),
         )
         dataset.data.x = results["node_embeddings"]
         return dataset
@@ -165,7 +165,6 @@ loader4 = DataLoader(dataset4)
 dataset5 = PPI(root="data/PPI")
 loader5 = DataLoader(dataset5)
 dataset6 = MoleculeNet(root="data", name="PCBA")
-print(dataset6[0].num_node_features)
 loader6 = DataLoader(dataset6)
 cnt_wait = 0
 b_xent = nn.BCEWithLogitsLoss()
@@ -222,7 +221,9 @@ for lr in [lr_list]:
         features6 = torch.FloatTensor(features6).to(device)
 
         adj = process.combine_dataset(adj1, adj2, adj3, adj4, adj5, adj6)
+        print("***")
         negative_sample = preprompt.prompt_pretrain_sample(adj, 50)
+        print("***")
 
     adj1 = process.normalize_adj(adj1 + sp.eye(adj1.shape[0]))
     adj2 = process.normalize_adj(adj2 + sp.eye(adj2.shape[0]))
@@ -288,6 +289,7 @@ for lr in [lr_list]:
             None,
             pre_i,
         )
+        print(loss)
         loss.backward()
         optimiser.step()
         print("Loss:[{:.4f}]".format(loss.item()))

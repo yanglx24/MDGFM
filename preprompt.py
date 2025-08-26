@@ -48,18 +48,24 @@ class ATT_learner(nn.Module):
         if self.sparse:
             rows, cols, values = knn_fast(embeddings, k, 1000)
             values[torch.isnan(values)] = 0
+            
             rows_ = torch.cat((rows, cols))
             cols_ = torch.cat((cols, rows))
             values_ = torch.cat((values, values))
+            
             values_ = apply_non_linearity(values_, self.non_linearity, self.i)
             values_ = F.dropout(values_, p=self.dropedge_rate, training=self.training)
 
             num_nodes = embeddings.shape[0]
-            learned_adj = torch.zeros(
-                (num_nodes, num_nodes),
+            
+            edge_index = torch.stack([rows_, cols_], dim=0)
+
+            learned_adj = torch.sparse_coo_tensor(
+                indices=edge_index,
+                values=values_,
+                size=(num_nodes, num_nodes),
                 device="cuda" if torch.cuda.is_available() else "cpu",
             )
-            learned_adj[rows_, cols_] = values_
 
             return learned_adj
         else:
@@ -233,19 +239,25 @@ class PrePrompt(nn.Module):
             torch.device("cuda" if torch.cuda.is_available() else "cpu")
         )
 
-        num1, _ = refinedadj1.size()
-        num2, _ = refinedadj2.size()
-        num3, _ = refinedadj3.size()
-        num4, _ = refinedadj4.size()
-        num5, _ = refinedadj5.size()
-        num6, _ = refinedadj6.size()
+        num_nodes_list = [
+            refinedadj1.shape[0], refinedadj2.shape[0], refinedadj3.shape[0],
+            refinedadj4.shape[0], refinedadj5.shape[0], refinedadj6.shape[0]
+        ]
+        device = refinedadj1.device
 
-        pos_eye1 = torch.eye(num1).to(refinedadj1.device)
-        pos_eye2 = torch.eye(num2).to(refinedadj1.device)
-        pos_eye3 = torch.eye(num3).to(refinedadj1.device)
-        pos_eye4 = torch.eye(num4).to(refinedadj1.device)
-        pos_eye5 = torch.eye(num5).to(refinedadj1.device)
-        pos_eye6 = torch.eye(num6).to(refinedadj1.device)
+        pos_eyes = []
+        for num_nodes in num_nodes_list:
+            indices = torch.arange(num_nodes, device=device).unsqueeze(0).repeat(2, 1)
+            values = torch.ones(num_nodes, device=device)
+            
+            sparse_eye = torch.sparse_coo_tensor(
+                indices=indices,
+                values=values,
+                size=(num_nodes, num_nodes)
+            )
+            pos_eyes.append(sparse_eye)
+
+        pos_eye1, pos_eye2, pos_eye3, pos_eye4, pos_eye5, pos_eye6 = pos_eyes
 
         prelogits1 = self.lp(self.gcn, preseq1, refinedadj1, sparse)
         prelogits2 = self.lp(self.gcn, preseq2, refinedadj2, sparse)
@@ -396,22 +408,49 @@ def compareloss(feature, tuples, temperature):
 
 
 def prompt_pretrain_sample(adj, n):
+    # nodenum = adj.shape[0]
+    # indices = adj.indices
+    # indptr = adj.indptr
+    # res = np.zeros((nodenum, 1 + n))
+    # whole = np.array(range(nodenum))
+    # print(nodenum)
+    # for i in range(nodenum):
+    #     print(i)
+    #     nonzero_index_i_row = indices[indptr[i] : indptr[i + 1]]
+    #     zero_index_i_row = np.setdiff1d(whole, nonzero_index_i_row)
+    #     np.random.shuffle(nonzero_index_i_row)
+    #     np.random.shuffle(zero_index_i_row)
+    #     if np.size(nonzero_index_i_row) == 0:
+    #         res[i][0] = i
+    #     else:
+    #         res[i][0] = nonzero_index_i_row[0]
+    #     res[i][1 : 1 + n] = zero_index_i_row[0:n]
+    # return res.astype(int)
     nodenum = adj.shape[0]
-    indices = adj.indices
-    indptr = adj.indptr
-    res = np.zeros((nodenum, 1 + n))
-    whole = np.array(range(nodenum))
+    
+    positive_samples = np.zeros(nodenum, dtype=int)
     for i in range(nodenum):
-        nonzero_index_i_row = indices[indptr[i] : indptr[i + 1]]
-        zero_index_i_row = np.setdiff1d(whole, nonzero_index_i_row)
-        np.random.shuffle(nonzero_index_i_row)
-        np.random.shuffle(zero_index_i_row)
-        if np.size(nonzero_index_i_row) == 0:
-            res[i][0] = i
+        neighbors = adj.indices[adj.indptr[i]:adj.indptr[i + 1]]
+        if len(neighbors) == 0:
+            positive_samples[i] = i
         else:
-            res[i][0] = nonzero_index_i_row[0]
-        res[i][1 : 1 + n] = zero_index_i_row[0:n]
-    return res.astype(int)
+            positive_samples[i] = np.random.choice(neighbors)
+
+    negative_samples = np.random.randint(0, nodenum, size=(nodenum, n))
+
+    for i in range(nodenum):
+        neighbor_set = set(adj.indices[adj.indptr[i]:adj.indptr[i + 1]])
+        neighbor_set.add(i)
+
+        for j in range(n):
+            while negative_samples[i, j] in neighbor_set:
+                negative_samples[i, j] = np.random.randint(0, nodenum)
+
+    positive_samples = positive_samples.reshape(-1, 1)
+    
+    res = np.concatenate((positive_samples, negative_samples), axis=1)
+    
+    return res
 
 
 def pca_compression(seq, k):
