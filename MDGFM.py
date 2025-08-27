@@ -9,7 +9,7 @@ from models import LogReg
 from preprompt import PrePrompt, pca_compression
 import preprompt as preprompt
 from utils import process
-from utils.gen_fewshot import gen_few_shot_data
+# from utils.gen_fewshot import gen_few_shot_data
 import pdb
 import aug
 import os
@@ -62,8 +62,7 @@ from utils.data_process import KGNodeInitializer
 torch.manual_seed(seed)
 torch.cuda.manual_seed(seed)
 from torch_geometric.datasets import (
-    PPI,
-    TUDataset,
+    AttributedGraphDataset,
     Planetoid,
     Amazon,
     Reddit,
@@ -156,13 +155,11 @@ dataset1 = PygNodePropPredDataset(name="ogbn-arxiv", root="data")
 loader1 = DataLoader(dataset1)
 dataset2 = AmazonProducts(root="data/AmazonProducts")
 loader2 = DataLoader(dataset2)
-
-
 dataset3 = Reddit(root="data/Reddit")
 loader3 = DataLoader(dataset3)
 dataset4 = load_KG_data_with_feats("FB15k_237")
 loader4 = DataLoader(dataset4)
-dataset5 = PPI(root="data/PPI")
+dataset5 = AttributedGraphDataset(root="data", name="PPI")
 loader5 = DataLoader(dataset5)
 dataset6 = MoleculeNet(root="data", name="PCBA")
 loader6 = DataLoader(dataset6)
@@ -225,6 +222,7 @@ for lr in [lr_list]:
         negative_sample = preprompt.prompt_pretrain_sample(adj, 50)
         print("***")
 
+    pdb.set_trace()
     adj1 = process.normalize_adj(adj1 + sp.eye(adj1.shape[0]))
     adj2 = process.normalize_adj(adj2 + sp.eye(adj2.shape[0]))
     adj3 = process.normalize_adj(adj3 + sp.eye(adj3.shape[0]))

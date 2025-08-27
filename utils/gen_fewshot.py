@@ -1,9 +1,9 @@
 import torch
 from torch_geometric.datasets import Planetoid
 import numpy as np
-from utils.data_process import KGNodeInitializer
+from data_process import KGNodeInitializer
 from torch_geometric.datasets import (
-    PPI,
+    AttributedGraphDataset,
     TUDataset,
     Planetoid,
     Amazon,
@@ -99,15 +99,16 @@ if __name__ == "__main__":
     dataset = AmazonProducts(root="data/AmazonProducts")
     dataset = Reddit(root="data/Reddit")
     dataset = FB15k_237(root="data/FB15k_237")
-    dataset = PPI(root="data/PPI")
+    dataset = AttributedGraphDataset(root="data", name="PPI")
+    print(dataset[0].data)
     dataset = MoleculeNet(root="data", name="PCBA")
 
-    dataset = Planetoid(root="data", name="Pubmed")
-    dataset = Amazon(root="data", name="Computers")
-    ###############################################
-    dataset = WordNet18RR(root="data/WordNet18RR")
-    dataset = TUDataset(root="data", name="PROTEINS")
-    dataset = MoleculeNet(root="data", name="Tox21")
+    # dataset = Planetoid(root="data", name="Pubmed")
+    # dataset = Amazon(root="data", name="Computers")
+    dataset = FacebookPagePage(root="data/FacebookPagePage")
+    # dataset = WordNet18RR(root="data/WordNet18RR")
+    # dataset = TUDataset(root="data", name="PROTEINS")
+    # dataset = MoleculeNet(root="data", name="Tox21")
 
     # datasets = ["Cora", "Citeseer", "Pubmed", "Chameleon", "Squirrel", "Cornell"]
     # num_shots = 5
