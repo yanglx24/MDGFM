@@ -30,12 +30,13 @@ class Logger:
         stream_handler.setLevel(level)
         stream_handler.setFormatter(formatter)
         self.logger.addHandler(stream_handler)
+        self.logger.propagate = False
     
     def get_logger(self):
         return self.logger
     
     def log_hyperparams(self, params: dict):
-        self.logger.info("--- Hyperparameters ---")
+        self.logger.info("--------- Hyperparameters ---------")
         for key, value in params.items():
-            self.logger.info(f"{key:<20}: {value}")
-        self.logger.info("-----------------------")
+            self.logger.info(f"{key:<15}: {value}")
+        self.logger.info("-----------------------------------")

@@ -147,9 +147,10 @@ def load_dataset(TARGET_NUM_BATCHES=200):
     loader6 = DataLoader(dataset6, batch_size=batch_sizes["PCBA"], shuffle=True)
     return loader1, loader2, loader3, loader4, loader5, loader6
 
-logger = logger.Logger(log_dir="logs").get_logger()
+logger = logger.Logger(log_dir="logs")
 args = parse_args()
-print(dir(logger))
+logger.log_hyperparams(vars(args))
+logger = logger.get_logger()
 seed(args.seed)
 loader1, loader2, loader3, loader4, loader5, loader6 = load_dataset(TARGET_NUM_BATCHES=1000)
 
@@ -179,7 +180,6 @@ for epoch in range(args.epochs):
     for batch, (data1, data2, data3, data4, data5, data6) in enumerate(
         zip(loader1, loader2, loader3, loader4, loader5, loader6)
     ):
-        logger.info("Batch:", batch) 
         results = [
             process.process_tu(data, data.x.shape[1]) 
             for data in [data1, data2, data3, data4, data5, data6]
@@ -243,7 +243,7 @@ for epoch in range(args.epochs):
         #     import sys
         #     sys.exit()
         optimizer.step()
-        print(f"Loss:[{loss.item():.4f}]")
+        logger.info(f"Epoch: {epoch}, Batch: {batch}, Loss:[{loss.item():.4f}]")
     if epoch_total_loss < best:
         best = epoch_total_loss
         best_epoch = epoch
@@ -252,7 +252,7 @@ for epoch in range(args.epochs):
     else:
         cnt_wait += 1
     if cnt_wait == patience:
-        print("Early stopping!")
+        logger.info("Early stopping!")
         break
         # print(f"Loading {best_t}th epoch")
 
