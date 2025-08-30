@@ -137,16 +137,10 @@ def parse_skipgram(fname):
 
 
 def process_tu(data, class_num):
-    nb_nodes = data.num_nodes
-    nb_graphs = data.num_graphs
-
-    ft_size = data.num_features
 
     num = range(class_num)
 
-    labelnum = range(class_num, ft_size)
     features = data.x[:, num]
-    rawlabels = data.x[:, labelnum]
 
     e_ind = data.edge_index
     coo = sp.coo_matrix(

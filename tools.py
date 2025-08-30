@@ -12,7 +12,8 @@ EOS = 1e-10
 
 
 def knn_fast(X, k, b):
-
+    if k >= X.shape[0]:
+        k = X.shape[0] - 1
     X = F.normalize(X, dim=1, p=2)
     index = 0
     values = torch.zeros(X.shape[0] * (k + 1)).to(
@@ -49,7 +50,7 @@ def knn_fast(X, k, b):
     norm = norm_row + norm_col
     rows = rows.long()
     cols = cols.long()
-    values *= torch.pow(norm[rows], -0.5) * torch.pow(norm[cols], -0.5)
+    values *= torch.pow(norm[rows]+1e-8, -0.5) * torch.pow(norm[cols]+1e-8, -0.5)
     return rows, cols, values
 
 

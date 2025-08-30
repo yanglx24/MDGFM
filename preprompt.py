@@ -112,8 +112,8 @@ def matrixsquare(matrix):
 
 
 class PrePrompt(nn.Module):
-    def __init__(self, n_in, n_h, activation, sample, num_layers_num, p, type):
-        super(PrePrompt, self).__init__()
+    def __init__(self, n_in, n_h, num_layers_num, p, type):
+        super().__init__()
         self.lp = Lp(n_in, n_h)
         self.gcn = GcnLayers(n_in, n_h, num_layers_num, p)
         self.read = AvgReadout()
@@ -128,13 +128,6 @@ class PrePrompt(nn.Module):
 
         self.sumtext = textprompt(n_in, type)
 
-        self.texttoken1 = textprompt(n_h, type)
-        self.texttoken2 = textprompt(n_h, type)
-        self.texttoken3 = textprompt(n_h, type)
-        self.texttoken4 = textprompt(n_h, type)
-        self.texttoken5 = textprompt(n_h, type)
-        self.texttoken6 = textprompt(n_h, type)
-
         self.balancetoken1 = textprompt(2 * n_in, type)
         self.balancetoken2 = textprompt(2 * n_in, type)
         self.balancetoken3 = textprompt(2 * n_in, type)
@@ -144,155 +137,202 @@ class PrePrompt(nn.Module):
 
         self.learner = ATT_learner(2, 50, 6, 0.5, sparse=True, act="relu")
 
-        self.negative_sample = torch.tensor(sample, dtype=int).to(
-            torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        )
-        self.loss = nn.BCEWithLogitsLoss()
+    # def forward(
+    #     self,
+    #     seq1,
+    #     seq2,
+    #     seq3,
+    #     seq4,
+    #     seq5,
+    #     seq6,
+    #     adj1,
+    #     adj2,
+    #     adj3,
+    #     adj4,
+    #     adj5,
+    #     adj6,
+    #     sparse,
+    #     msk,
+    #     samp_bias1,
+    #     samp_bias2,
+    #     i,
+    # ):
 
-    def forward(
-        self,
-        seq1,
-        seq2,
-        seq3,
-        seq4,
-        seq5,
-        seq6,
-        adj1,
-        adj2,
-        adj3,
-        adj4,
-        adj5,
-        adj6,
-        sparse,
-        msk,
-        samp_bias1,
-        samp_bias2,
-        i,
-    ):
+    #     seq1 = torch.squeeze(seq1, 0)
+    #     seq2 = torch.squeeze(seq2, 0)
+    #     seq3 = torch.squeeze(seq3, 0)
+    #     seq4 = torch.squeeze(seq4, 0)
+    #     seq5 = torch.squeeze(seq5, 0)
+    #     seq6 = torch.squeeze(seq6, 0)
 
-        seq1 = torch.squeeze(seq1, 0)
-        seq2 = torch.squeeze(seq2, 0)
-        seq3 = torch.squeeze(seq3, 0)
-        seq4 = torch.squeeze(seq4, 0)
-        seq5 = torch.squeeze(seq5, 0)
-        seq6 = torch.squeeze(seq6, 0)
+    #     preseq1 = self.pretext1(seq1)
+    #     preseq2 = self.pretext2(seq2)
+    #     preseq3 = self.pretext3(seq3)
+    #     preseq4 = self.pretext4(seq4)
+    #     preseq5 = self.pretext5(seq5)
+    #     preseq6 = self.pretext6(seq6)
 
-        preseq1 = self.pretext1(seq1)
-        preseq2 = self.pretext2(seq2)
-        preseq3 = self.pretext3(seq3)
-        preseq4 = self.pretext4(seq4)
-        preseq5 = self.pretext5(seq5)
-        preseq6 = self.pretext6(seq6)
+    #     preseq1 = F.relu(preseq1)
+    #     preseq2 = F.relu(preseq2)
+    #     preseq3 = F.relu(preseq3)
+    #     preseq4 = F.relu(preseq4)
+    #     preseq5 = F.relu(preseq5)
+    #     preseq6 = F.relu(preseq6)
 
-        preseq1 = F.relu(preseq1)
-        preseq2 = F.relu(preseq2)
-        preseq3 = F.relu(preseq3)
-        preseq4 = F.relu(preseq4)
-        preseq5 = F.relu(preseq5)
-        preseq6 = F.relu(preseq6)
+    #     preseq1 = self.sumtext(preseq1)
+    #     preseq2 = self.sumtext(preseq2)
+    #     preseq3 = self.sumtext(preseq3)
+    #     preseq4 = self.sumtext(preseq4)
+    #     preseq5 = self.sumtext(preseq5)
+    #     preseq6 = self.sumtext(preseq6)
 
-        preseq1 = self.sumtext(preseq1)
-        preseq2 = self.sumtext(preseq2)
-        preseq3 = self.sumtext(preseq3)
-        preseq4 = self.sumtext(preseq4)
-        preseq5 = self.sumtext(preseq5)
-        preseq6 = self.sumtext(preseq6)
+    #     reseq1 = torch.sparse.mm(adj1, preseq1)
+    #     reseq1 = torch.cat((preseq1, reseq1), dim=1)
+    #     reseq2 = torch.sparse.mm(adj2, preseq2)
+    #     reseq2 = torch.cat((preseq2, reseq2), dim=1)
+    #     reseq3 = torch.sparse.mm(adj3, preseq3)
+    #     reseq3 = torch.cat((preseq3, reseq3), dim=1)
+    #     reseq4 = torch.sparse.mm(adj4, preseq4)
+    #     reseq4 = torch.cat((preseq4, reseq4), dim=1)
+    #     reseq5 = torch.sparse.mm(adj5, preseq5)
+    #     reseq5 = torch.cat((preseq5, reseq5), dim=1)
+    #     reseq6 = torch.sparse.mm(adj6, preseq6)
+    #     reseq6 = torch.cat((preseq6, reseq6), dim=1)
 
-        reseq1 = torch.sparse.mm(adj1, preseq1)
-        reseq1 = torch.cat((preseq1, reseq1), dim=1)
-        reseq2 = torch.sparse.mm(adj2, preseq2)
-        reseq2 = torch.cat((preseq2, reseq2), dim=1)
-        reseq3 = torch.sparse.mm(adj3, preseq3)
-        reseq3 = torch.cat((preseq3, reseq3), dim=1)
-        reseq4 = torch.sparse.mm(adj4, preseq4)
-        reseq4 = torch.cat((preseq4, reseq4), dim=1)
-        reseq5 = torch.sparse.mm(adj5, preseq5)
-        reseq5 = torch.cat((preseq5, reseq5), dim=1)
-        reseq6 = torch.sparse.mm(adj6, preseq6)
-        reseq6 = torch.cat((preseq6, reseq6), dim=1)
+    #     reseq1 = self.balancetoken1(reseq1)
+    #     reseq2 = self.balancetoken2(reseq2)
+    #     reseq3 = self.balancetoken3(reseq3)
+    #     reseq4 = self.balancetoken4(reseq4)
+    #     reseq5 = self.balancetoken5(reseq5)
+    #     reseq6 = self.balancetoken6(reseq6)
 
-        reseq1 = self.balancetoken1(reseq1)
-        reseq2 = self.balancetoken2(reseq2)
-        reseq3 = self.balancetoken3(reseq3)
-        reseq4 = self.balancetoken4(reseq4)
-        reseq5 = self.balancetoken5(reseq5)
-        reseq6 = self.balancetoken6(reseq6)
+    #     pre_k = [30, 30, 30, 15, 15, 15]
+    #     pre_k[i] = 15
+    #     refinedadj1 = self.learner.graph_process(pre_k[0], reseq1).to(
+    #         torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    #     )
+    #     refinedadj2 = self.learner.graph_process(pre_k[1], reseq2).to(
+    #         torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    #     )
+    #     refinedadj3 = self.learner.graph_process(pre_k[2], reseq3).to(
+    #         torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    #     )
+    #     refinedadj4 = self.learner.graph_process(pre_k[3], reseq4).to(
+    #         torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    #     )
+    #     refinedadj5 = self.learner.graph_process(pre_k[4], reseq5).to(
+    #         torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    #     )
+    #     refinedadj6 = self.learner.graph_process(pre_k[5], reseq6).to(
+    #         torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    #     )
 
-        pre_k = [30, 30, 30, 15, 15, 15]
-        pre_k[i] = 15
-        refinedadj1 = self.learner.graph_process(pre_k[0], reseq1).to(
-            torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        )
-        refinedadj2 = self.learner.graph_process(pre_k[1], reseq2).to(
-            torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        )
-        refinedadj3 = self.learner.graph_process(pre_k[2], reseq3).to(
-            torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        )
-        refinedadj4 = self.learner.graph_process(pre_k[3], reseq4).to(
-            torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        )
-        refinedadj5 = self.learner.graph_process(pre_k[4], reseq5).to(
-            torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        )
-        refinedadj6 = self.learner.graph_process(pre_k[5], reseq6).to(
-            torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        )
+    #     num_nodes_list = [
+    #         refinedadj1.shape[0], refinedadj2.shape[0], refinedadj3.shape[0],
+    #         refinedadj4.shape[0], refinedadj5.shape[0], refinedadj6.shape[0]
+    #     ]
+    #     device = refinedadj1.device
 
-        num_nodes_list = [
-            refinedadj1.shape[0], refinedadj2.shape[0], refinedadj3.shape[0],
-            refinedadj4.shape[0], refinedadj5.shape[0], refinedadj6.shape[0]
+    #     pos_eyes = []
+    #     for num_nodes in num_nodes_list:
+    #         indices = torch.arange(num_nodes, device=device).unsqueeze(0).repeat(2, 1)
+    #         values = torch.ones(num_nodes, device=device)
+            
+    #         sparse_eye = torch.sparse_coo_tensor(
+    #             indices=indices,
+    #             values=values,
+    #             size=(num_nodes, num_nodes)
+    #         )
+    #         pos_eyes.append(sparse_eye)
+
+    #     pos_eye1, pos_eye2, pos_eye3, pos_eye4, pos_eye5, pos_eye6 = pos_eyes
+
+    #     prelogits1 = self.lp(self.gcn, preseq1, refinedadj1, sparse)
+    #     prelogits2 = self.lp(self.gcn, preseq2, refinedadj2, sparse)
+    #     prelogits3 = self.lp(self.gcn, preseq3, refinedadj3, sparse)
+    #     prelogits4 = self.lp(self.gcn, preseq4, refinedadj4, sparse)
+    #     prelogits5 = self.lp(self.gcn, preseq5, refinedadj5, sparse)
+    #     prelogits6 = self.lp(self.gcn, preseq6, refinedadj6, sparse)
+
+    #     logits1 = self.lp(self.gcn, preseq1, adj1, sparse)
+    #     logits2 = self.lp(self.gcn, preseq2, adj2, sparse)
+    #     logits3 = self.lp(self.gcn, preseq3, adj3, sparse)
+    #     logits4 = self.lp(self.gcn, preseq4, adj4, sparse)
+    #     logits5 = self.lp(self.gcn, preseq5, adj5, sparse)
+    #     logits6 = self.lp(self.gcn, preseq6, adj6, sparse)
+
+    #     lploss1 = (
+    #         Calbound.calc_lower_bound(prelogits1, logits1, pos_eye1)
+    #         + Calbound.calc_lower_bound(prelogits2, logits2, pos_eye2)
+    #         + Calbound.calc_lower_bound(prelogits3, logits3, pos_eye3)
+    #         + Calbound.calc_lower_bound(prelogits4, logits4, pos_eye4)
+    #         + Calbound.calc_lower_bound(prelogits5, logits5, pos_eye5)
+    #         + Calbound.calc_lower_bound(prelogits6, logits6, pos_eye6)
+    #     )
+    #     lploss2 = (
+    #         Calbound.calc_lower_bound(prelogits1, logits1, refinedadj1.detach())
+    #         + Calbound.calc_lower_bound(prelogits2, logits2, refinedadj2.detach())
+    #         + Calbound.calc_lower_bound(prelogits3, logits3, refinedadj3.detach())
+    #         + Calbound.calc_lower_bound(prelogits4, logits4, refinedadj4.detach())
+    #         + Calbound.calc_lower_bound(prelogits5, logits5, refinedadj5.detach())
+    #         + Calbound.calc_lower_bound(prelogits6, logits6, refinedadj6.detach())
+    #     )
+
+    #     lploss = lploss1 + lploss2
+    #     lploss.requires_grad_(True)
+    #     return lploss
+    def forward(self, sparse, i, **kwargs):
+        seqs = kwargs.get("seqs")
+        adjs = kwargs.get("adjs")
+        pretexts = [
+            self.pretext1, self.pretext2, self.pretext3,
+            self.pretext4, self.pretext5, self.pretext6
         ]
-        device = refinedadj1.device
+        balancetokens = [
+            self.balancetoken1, self.balancetoken2, self.balancetoken3,
+            self.balancetoken4, self.balancetoken5, self.balancetoken6
+        ]
 
-        pos_eyes = []
-        for num_nodes in num_nodes_list:
+        total_lploss = 0.0
+        
+        pre_k = [15, 15, 15, 15, 15, 15]
+            
+        for idx, (seq, adj, pretext_layer, balancetoken_layer) in enumerate(zip(seqs, adjs, pretexts, balancetokens)):
+            if seq is None or adj is None:
+                continue
+
+            seq = torch.squeeze(seq, 0)
+            
+            preseq = pretext_layer(seq)
+            preseq = F.relu(preseq)
+            preseq = self.sumtext(preseq)
+
+            reseq = torch.sparse.mm(adj, preseq)
+            reseq = torch.cat((preseq, reseq), dim=1)
+            reseq = balancetoken_layer(reseq)
+
+            refinedadj = self.learner.graph_process(pre_k[idx], reseq)
+
+            num_nodes = refinedadj.shape[0]
+            device = refinedadj.device
             indices = torch.arange(num_nodes, device=device).unsqueeze(0).repeat(2, 1)
             values = torch.ones(num_nodes, device=device)
-            
-            sparse_eye = torch.sparse_coo_tensor(
-                indices=indices,
-                values=values,
-                size=(num_nodes, num_nodes)
+            pos_eye = torch.sparse_coo_tensor(
+                indices=indices, values=values, size=(num_nodes, num_nodes)
             )
-            pos_eyes.append(sparse_eye)
 
-        pos_eye1, pos_eye2, pos_eye3, pos_eye4, pos_eye5, pos_eye6 = pos_eyes
+            prelogits = self.lp(self.gcn, preseq, refinedadj, sparse)
+            logits = self.lp(self.gcn, preseq, adj, sparse)
+            
+            lploss1_part = Calbound.calc_lower_bound(prelogits, logits, pos_eye)
+            lploss2_part = Calbound.calc_lower_bound(prelogits, logits, refinedadj.detach())
+            
+            total_lploss += lploss1_part + lploss2_part
 
-        prelogits1 = self.lp(self.gcn, preseq1, refinedadj1, sparse)
-        prelogits2 = self.lp(self.gcn, preseq2, refinedadj2, sparse)
-        prelogits3 = self.lp(self.gcn, preseq3, refinedadj3, sparse)
-        prelogits4 = self.lp(self.gcn, preseq4, refinedadj4, sparse)
-        prelogits5 = self.lp(self.gcn, preseq5, refinedadj5, sparse)
-        prelogits6 = self.lp(self.gcn, preseq6, refinedadj6, sparse)
+        if isinstance(total_lploss, torch.Tensor):
+            total_lploss.requires_grad_(True)
 
-        logits1 = self.lp(self.gcn, preseq1, adj1, sparse)
-        logits2 = self.lp(self.gcn, preseq2, adj2, sparse)
-        logits3 = self.lp(self.gcn, preseq3, adj3, sparse)
-        logits4 = self.lp(self.gcn, preseq4, adj4, sparse)
-        logits5 = self.lp(self.gcn, preseq5, adj5, sparse)
-        logits6 = self.lp(self.gcn, preseq6, adj6, sparse)
-
-        lploss1 = (
-            Calbound.calc_lower_bound(prelogits1, logits1, pos_eye1)
-            + Calbound.calc_lower_bound(prelogits2, logits2, pos_eye2)
-            + Calbound.calc_lower_bound(prelogits3, logits3, pos_eye3)
-            + Calbound.calc_lower_bound(prelogits4, logits4, pos_eye4)
-            + Calbound.calc_lower_bound(prelogits5, logits5, pos_eye5)
-            + Calbound.calc_lower_bound(prelogits6, logits6, pos_eye6)
-        )
-        lploss2 = (
-            Calbound.calc_lower_bound(prelogits1, logits1, refinedadj1.detach())
-            + Calbound.calc_lower_bound(prelogits2, logits2, refinedadj2.detach())
-            + Calbound.calc_lower_bound(prelogits3, logits3, refinedadj3.detach())
-            + Calbound.calc_lower_bound(prelogits4, logits4, refinedadj4.detach())
-            + Calbound.calc_lower_bound(prelogits5, logits5, refinedadj5.detach())
-            + Calbound.calc_lower_bound(prelogits6, logits6, refinedadj6.detach())
-        )
-
-        lploss = lploss1 + lploss2
-        lploss.requires_grad_(True)
-        return lploss
+        return total_lploss
 
     def embedding(
         self,
@@ -456,8 +496,6 @@ def prompt_pretrain_sample(adj, n):
 def pca_compression(seq, k):
     pca = PCA(n_components=k)
     seq = pca.fit_transform(seq)
-
-    print(pca.explained_variance_ratio_.sum())
     return seq
 
 
