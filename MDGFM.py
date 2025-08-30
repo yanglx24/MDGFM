@@ -3,9 +3,10 @@ import torch.nn as nn
 from utils.data_process import KGNodeInitializer
 import numpy as np
 import scipy.sparse as sp
+import pandas as pd
 import random
-import time
 import math
+from datetime import datetime
 from torch_geometric.loader import NeighborLoader, DataLoader
 from torch_geometric.datasets import (
     AttributedGraphDataset,
@@ -147,6 +148,7 @@ def load_dataset(TARGET_NUM_BATCHES=200):
     loader6 = DataLoader(dataset6, batch_size=batch_sizes["PCBA"], shuffle=True)
     return loader1, loader2, loader3, loader4, loader5, loader6
 
+csv_filename = f'logs/train_{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.csv'
 logger = logger.Logger(log_dir="logs")
 args = parse_args()
 logger.log_hyperparams(vars(args))
@@ -168,13 +170,13 @@ b_xent = nn.BCEWithLogitsLoss()
 xent = nn.CrossEntropyLoss()
 unify_dim = 5
 best = 1e9
-args.save_name = str(time.localtime()) + args.save_name
 
 model = PrePrompt(unify_dim, hid_units, 3, args.drop_percent, args.combinetype).to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=l2_coef)
 
 logger.info("===================== Start Pre-training on 6 datasets... =====================")
 model.train()
+
 for epoch in range(args.epochs):
     epoch_total_loss = 0
     for batch, (data1, data2, data3, data4, data5, data6) in enumerate(
@@ -231,30 +233,26 @@ for epoch in range(args.epochs):
         loss = model(sparse, pre_i, **kwargs)
         epoch_total_loss += loss.item()
         loss.backward()
-        # found_nan_grad = False
-        # for name, param in model.named_parameters():
-        #     if param.grad is not None:
-        #         if torch.isnan(param.grad).any() or torch.isinf(param.grad).any():
-        #             print(f"!!! Found NaN/Inf gradient in parameter: {name} !!!")
-        #             found_nan_grad = True
-
-        # if found_nan_grad:
-        #     print("Stopping training due to NaN gradients.")
-        #     import sys
-        #     sys.exit()
         optimizer.step()
-        logger.info(f"Epoch: {epoch}, Batch: {batch}, Loss:[{loss.item():.4f}]")
+        logger.info(f"Epoch: {epoch}, Batch: {batch}, Loss:{loss.item():.4f}")
+        
+    log_df = pd.DataFrame([{'epoch': epoch, 'loss': round(epoch_total_loss, 4)}])
+    log_df.to_csv(
+        csv_filename,
+        mode='a',
+        header=not os.path.exists(csv_filename), 
+        index=False
+    )
     if epoch_total_loss < best:
         best = epoch_total_loss
         best_epoch = epoch
         cnt_wait = 0
-        torch.save(model.state_dict(), args.save_name)
+        torch.save(model.state_dict(), "checkpoints/" + args.save_name)
     else:
         cnt_wait += 1
     if cnt_wait == patience:
         logger.info("Early stopping!")
         break
-        # print(f"Loading {best_t}th epoch")
 
 # model = PrePrompt(unify_dim, hid_units, 1, 3, 0.1, args.combinetype)
 
